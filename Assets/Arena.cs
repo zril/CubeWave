@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.UI;
 
 public class Arena : MonoBehaviour {
     
@@ -11,18 +12,24 @@ public class Arena : MonoBehaviour {
     private int playerCount;
     private bool reload = false;
     private float reloadTimer = 0;
+    private float gameTimer = 0f;
+    private float rotationTimer = 0f;
 
-    private Quaternion nextRot;
+    private float rotateSpeed = 1f;
+    private float ShakeRotPower = 300f;
+    private float ShakePower = 1.3f;
+    private float ShakeCorrectionSpeed = 1.0f;
+    private Vector3 rotationVector;
 
-	// Use this for initialization
-	void Start () {
+    private bool rotationTimerOffset = false;
+
+    private GameObject victory;
+
+    // Use this for initialization
+    void Start () {
         currentTurns = new List<TurnObj>();
-        //Turn(new Vector3(0, 1, 0));
-        //Turn(new Vector3(1, 0, 0));
-        //Turn(new Vector3(0, -1, 0));
 
         reload = false;
-        nextRot = transform.rotation;
 
         playerCount = Global.playerCount;
 
@@ -44,20 +51,75 @@ public class Arena : MonoBehaviour {
                 player.gameObject.SetActive(false);
             }
         }
+
+        victory = GameObject.FindGameObjectWithTag("Victory");
+        victory.SetActive(false);
     }
 
     // Update is called once per frame
     void Update()
     {
         reloadTimer += Time.deltaTime;
+        gameTimer += Time.deltaTime;
+        rotationTimer += Time.deltaTime;
+
         if (reloadTimer > 0 && reload)
+        {
+            SceneManager.LoadScene(1, LoadSceneMode.Single);
+        }
+
+        if (Input.GetKeyDown(KeyCode.Escape))
         {
             SceneManager.LoadScene(0, LoadSceneMode.Single);
         }
 
-        //transform.Rotate(0.1f, 0.1f, 0.1f);
+        //Shake
+        var magnitude = transform.GetChild(0).localPosition.magnitude;
+        if (magnitude > 0)
+        {
+            if (magnitude > ShakeCorrectionSpeed * Time.deltaTime)
+            {
+                transform.GetChild(0).localPosition = transform.GetChild(0).localPosition - transform.GetChild(0).localPosition.normalized * ShakeCorrectionSpeed * Time.deltaTime;
+                //transform.Rotate((-0.5f + Random.value) * Time.deltaTime * ShakeRotPower * transform.position.magnitude, (-0.5f + Random.value) * Random.value * Time.deltaTime * ShakeRotPower * transform.position.magnitude, (-0.5f + Random.value) * Random.value * Time.deltaTime * ShakeRotPower * transform.position.magnitude);
+                transform.GetChild(0).transform.localRotation = Quaternion.Euler((-0.5f + Random.value) * Time.deltaTime * ShakeRotPower * magnitude, (-0.5f + Random.value) * Random.value * Time.deltaTime * ShakeRotPower * magnitude, (-0.5f + Random.value) * Random.value * Time.deltaTime * ShakeRotPower * magnitude);
+            } else
+            {
+                transform.GetChild(0).localPosition = Vector3.zero;
+                transform.GetChild(0).transform.localRotation = Quaternion.identity;
+            }
+        }
+        
+
+        var rotateLevel = 0;
+        if (gameTimer > 28)
+        {
+            rotateLevel++;
+        }
+        if (gameTimer > 56)
+        {
+            rotateLevel+=2;
+        }
+        if (gameTimer > 80)
+        {
+            rotateLevel+=3;
+            if (!rotationTimerOffset)
+            {
+                rotationTimer -= 2f;
+                rotationTimerOffset = true;
+            }
+        }
+        if (rotationTimer > 0)
+        {
+            rotationVector = new Vector3(-1 + Random.value * 2, -1 + Random.value * 2, -1 + Random.value * 2);
+            rotationVector = new Vector3(rotationVector.x + Mathf.Sign(rotationVector.x), rotationVector.y + Mathf.Sign(rotationVector.y), rotationVector.z + Mathf.Sign(rotationVector.z));
+            rotationTimer = -4f;
+        }
+
+        transform.Rotate(Time.deltaTime * rotateSpeed * rotateLevel * rotationVector.x, Time.deltaTime * rotateSpeed * rotateLevel * rotationVector.y, Time.deltaTime * rotateSpeed * rotateLevel * rotationVector.z);
+
+
         var sumrotation = new Vector3();
-        List<TurnObj> toRemove = new List<TurnObj>();
+        //List<TurnObj> toRemove = new List<TurnObj>();
         /*foreach (TurnObj turn in currentTurns)
         {
             var angle = rotationSpeed * Time.deltaTime;
@@ -105,6 +167,7 @@ public class Arena : MonoBehaviour {
     public void UpdateUI()
     {
         int playersAlive = 0;
+        var winner = 0;
         var players = GameObject.FindGameObjectsWithTag("Player");
         var canvas = FindObjectOfType<Canvas>();
         foreach (GameObject player in players)
@@ -114,6 +177,7 @@ public class Arena : MonoBehaviour {
             if (script.GetNbLifes() > 0)
             {
                 playersAlive++;
+                winner = script.playerNumber;
             }
 
             for (int i = 1; i <= 3; i++)
@@ -125,10 +189,40 @@ public class Arena : MonoBehaviour {
             }   
         }
 
-        if (playersAlive < 2)
+        if (playersAlive < 2 && !reload)
         {
             reload = true;
-            reloadTimer = -3f;
+            reloadTimer = -5f;
+            victory.SetActive(true);
+            
+
+            string message = "";
+            Color color = Color.white;
+            switch (winner)
+            {
+                case 1:
+                    message += "Blue";
+                    color = Color.blue;
+                    break;
+                case 2:
+                    message += "Red";
+                    color = Color.red;
+                    break;
+                case 3:
+                    message += "Green";
+                    color = Color.green;
+                    break;
+                case 4:
+                    message += "Yellow";
+                    color = Color.yellow;
+                    break;
+                default:
+                    message += "No";
+                    break;
+            }
+            message += " Pig Wins !";
+            victory.GetComponent<Text>().text = message;
+            victory.GetComponent<Text>().color = color;
         }
     }
 
@@ -139,6 +233,11 @@ public class Arena : MonoBehaviour {
         //currentTurns.Add(new TurnObj(Quaternion.Inverse(transform.rotation) * vector));
         //currentTurns.Add(new TurnObj(transform.rotation * vector));
         currentTurns.Add(new TurnObj(vector));
+    }
+
+    public void Shake(Vector3 face, float power)
+    {
+        transform.GetChild(0).localPosition = transform.GetChild(0).localPosition - transform.rotation * face * ShakePower * power;
     }
 
     private void SlideBlocks(TurnObj turn)

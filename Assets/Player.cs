@@ -12,20 +12,24 @@ public class Player : MonoBehaviour {
     private float rotSpeed = 6f;
     private float jumpPower = 0.3f;
     private float jumpPowerLoss = 2f;
-    private float moveSpeed = 0.05f;
+    private float moveSpeed = 0.07f;
     private float backSpeed = 0.02f;
-    private float jumpCooldown = 0.8f;
-    private float doubleJumpTime = 0.3f;
+    private float jumpCooldown = 1.0f;
+    private float doubleJumpTime = 0.25f;
+    private float doubleJumpBonus = 0.15f;
+    private int maxJumpCount = 3;
 
     private KeyCode upKey = KeyCode.UpArrow;
     private KeyCode downKey = KeyCode.DownArrow;
     private KeyCode leftKey = KeyCode.LeftArrow;
     private KeyCode rightKey = KeyCode.RightArrow;
     private KeyCode jumpKey = KeyCode.RightControl;
+    private bool jumpKeyFlag = true;
     
     
     private float jumpSpeed = 0f;
     private float jumpTimer = 0f;
+    private float jumpInputTimer = 0f;
     private float deathTimer = 0f;
     private bool dead = false;
     private int doubleJumpCount = 0;
@@ -34,6 +38,7 @@ public class Player : MonoBehaviour {
     void Start () {
         //currentFace = GetNewFace(transform.localPosition);
         nbLifes = 3;
+        deathTimer = 2f;
         switch (playerNumber)
         {
             case 1:
@@ -73,11 +78,46 @@ public class Player : MonoBehaviour {
                 break;
         }
     }
-	
-	// Update is called once per frame
-	void Update () {
+
+    private bool GetUpKey()
+    {
+        return Input.GetKey(upKey) || Input.GetAxis("Vertical "+ playerNumber) > 0.9f;
+    }
+
+    private bool GetDownKey()
+    {
+        return Input.GetKey(downKey) || Input.GetAxis("Vertical " + playerNumber) < -0.9f;
+    }
+
+    private bool GetRightKey()
+    {
+        return Input.GetKey(rightKey) || Input.GetAxis("Horizontal " + playerNumber) > 0.5f;
+    }
+
+    private bool GetLeftKey()
+    {
+        return Input.GetKey(leftKey) || Input.GetAxis("Horizontal " + playerNumber) < -0.5f;
+    }
+
+    private bool GetJumpKeyDown()
+    {
+        if (jumpKeyFlag && (Input.GetKeyDown(jumpKey) || Input.GetAxisRaw("Jump " + playerNumber) > 0f))
+        {
+            jumpKeyFlag = false;
+            return true;
+        } else
+        {
+            return false;
+        }
+        
+
+    }
+
+    // Update is called once per frame
+    void Update () {
         deathTimer += Time.deltaTime;
         jumpTimer += Time.deltaTime;
+        jumpInputTimer += Time.deltaTime;
 
         var arena = GameObject.FindGameObjectWithTag("Arena");
 
@@ -88,25 +128,30 @@ public class Player : MonoBehaviour {
         {
             dead = false;
             init(-currentFace);
-            GetComponent<Renderer>().enabled = true;
+            gameObject.transform.GetChild(0).GetComponent<Renderer>().enabled = true;
         }
 
         
-        if (jumpTimer > 0 && doubleJumpCount > 0)
+        if (jumpSpeed == 0 && jumpTimer > 0 && doubleJumpCount > 0)
         {
-            //Debug.Log("fail time");
+            Debug.Log("fail time");
             doubleJumpCount = 0;
         }
         
-        if (jumpSpeed > 0 && doubleJumpCount > 0 && Input.GetKeyDown(jumpKey))
+        if (jumpSpeed > 0 && doubleJumpCount > 0 && GetJumpKeyDown())
         {
-            //Debug.Log("fail input");
+            Debug.Log("fail input");
             doubleJumpCount = 0;
+        }
+
+        if (Input.GetAxisRaw("Jump " + playerNumber) == 0)
+        {
+            jumpKeyFlag = true;
         }
 
         if (jumpSpeed == 0)
         {
-            if (Input.GetKey(upKey))
+            if (GetUpKey() && !dead)
             {
                 var forwardSpeed = forward * moveSpeed;
                 var nextPos = new Vector3(pos.x + forwardSpeed.x, pos.y + forwardSpeed.y, pos.z + forwardSpeed.z);
@@ -114,7 +159,7 @@ public class Player : MonoBehaviour {
                 transform.localPosition = nextPos;
             }
 
-            if (Input.GetKey(downKey))
+            if (GetDownKey() && !dead)
             {
                 var backwardSpeed = -forward * backSpeed;
                 var nextPos = new Vector3(pos.x + backwardSpeed.x, pos.y + backwardSpeed.y, pos.z + backwardSpeed.z);
@@ -122,30 +167,43 @@ public class Player : MonoBehaviour {
                 transform.localPosition = nextPos;
             }
 
-            if (Input.GetKey(leftKey))
+            if (GetLeftKey() && !dead)
             {
                 transform.Rotate(0, 0, -rotSpeed);
             }
 
-            if (Input.GetKey(rightKey))
+            if (GetRightKey() && !dead)
             {
                 transform.Rotate(0, 0, rotSpeed);
             }
 
-            if (Input.GetKeyDown(jumpKey))
+            if (GetJumpKeyDown() && !dead && (jumpInputTimer > 0 || doubleJumpCount > 0)) //cooldown ou double jump
             {
                 //jump
                 jumpSpeed = jumpPower;
                 if (jumpTimer < 0)
                 {
-                    jumpSpeed += jumpPower * 0.20f * Mathf.Min(doubleJumpCount, 5);
+                    jumpSpeed += jumpPower * doubleJumpBonus * doubleJumpCount;
                 }
                 doubleJumpCount += 1;
                 // Debug.Log(doubleJumpCount);
+                if (doubleJumpCount >= maxJumpCount)
+                {
+                    doubleJumpCount = 0;
+                }
 
                 var audio = GameObject.FindObjectOfType<AudioSource>();
                 audio.PlayOneShot(Resources.Load("sound/JUMPBEGIN-001Mono", typeof(AudioClip)) as AudioClip);
-                audio.PlayOneShot(Resources.Load("sound/JUMPAIR-001Mono", typeof(AudioClip)) as AudioClip);
+
+                var random = Mathf.Ceil(Random.value * 6);
+                audio.PlayOneShot(Resources.Load("sound/JUMPAIR-00"+ random + "Mono", typeof(AudioClip)) as AudioClip);
+
+                var pschit = UnityEngine.Object.Instantiate(Resources.Load("fart", typeof(GameObject)), transform.position, Quaternion.identity) as GameObject;
+                pschit.transform.parent = arena.transform;
+                pschit.transform.localRotation = Quaternion.LookRotation(-forward);
+                //pschit.transform.Rotate(0, 0, 0);
+
+                jumpInputTimer = -jumpCooldown;
             }
         } else
         {
@@ -180,13 +238,18 @@ public class Player : MonoBehaviour {
                 audio.PlayOneShot(Resources.Load("sound/JUMPEND-001Mono", typeof(AudioClip)) as AudioClip);
             }
         }
+
+
+        //var dir = new Vector3(forward.x + currentFace.x - pos.x, pos.y + forward.y + currentFace.y -pos.y, pos.z + forward.z + currentFace.z - pos.z);
+        //DrawLine(transform.localPosition, transform.localPosition + dir * 10, Color.red);
+
     }
 
     private void init(Vector3 face)
     {
         transform.localPosition = new Vector3(face.x * -5, face.y * -5, face.z * -5);
         currentFace = face;
-        transform.localRotation = Quaternion.LookRotation(currentFace);
+        transform.localRotation = Quaternion.LookRotation(currentFace, Vector3.back);
     }
 
     public Vector3 GetCurrentFace()
@@ -196,9 +259,9 @@ public class Player : MonoBehaviour {
 
     public void Kill()
     {
-        if (!dead)
+        if (!dead && deathTimer > 2f)
         {
-            GetComponent<Renderer>().enabled = false;
+            gameObject.transform.GetChild(0).GetComponent<Renderer>().enabled = false;
             deathTimer = -1f;
             dead = true;
             nbLifes--;
@@ -216,4 +279,25 @@ public class Player : MonoBehaviour {
     {
         return nbLifes;
     }
+
+    public bool isFlying()
+    {
+        return jumpSpeed > 0;
+    }
+    
+    private void DrawLine(Vector3 start, Vector3 end, Color color)
+    {
+        GameObject myLine = new GameObject();
+        myLine.transform.position = start;
+        myLine.AddComponent<LineRenderer>();
+        LineRenderer lr = myLine.GetComponent<LineRenderer>();
+        lr.material = new Material(Shader.Find("Particles/Alpha Blended Premultiply"));
+        lr.SetColors(color, color);
+        lr.SetWidth(0.1f, 0.1f);
+        lr.SetPosition(0, start);
+        lr.SetPosition(1, end);
+        GameObject.Destroy(myLine, 0.02f);
+    }
+
+
 }

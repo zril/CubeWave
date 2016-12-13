@@ -17,11 +17,12 @@ public class Block : MonoBehaviour {
     private float speedloss = 0.6f;
 
     private float slidePower = 0.4f;
-    private float pushPower = 2f;
+    private float pushPower = 4f;
 
     // Use this for initialization
     void Start () {
         currentFace = Utils.GetFace(transform.localPosition);
+        transform.localRotation = Quaternion.LookRotation(currentFace);
 	}
 	
 	// Update is called once per frame
@@ -36,9 +37,9 @@ public class Block : MonoBehaviour {
 
             if (Utils.WallCheck(nextPos))
             {
-                var oldFace = currentFace;
                 nextPos = Utils.WallLimit(nextPos, currentFace);
                 currentFace = Utils.GetFace(nextPos);
+                transform.localRotation = Quaternion.LookRotation(currentFace);
 
                 flying = false;
                 flyTimer = 0;

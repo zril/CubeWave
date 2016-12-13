@@ -156,10 +156,10 @@ class Utils
     {
         var arena = GameObject.FindGameObjectWithTag("Arena");
 
-        GameObject instance = UnityEngine.Object.Instantiate(Resources.Load("wave", typeof(GameObject)), position, Quaternion.identity) as GameObject;
+        GameObject instance = UnityEngine.Object.Instantiate(Resources.Load("wave"+playerNumber, typeof(GameObject)), position, Quaternion.identity) as GameObject;
         instance.transform.parent = arena.transform;
         instance.transform.localRotation = Quaternion.LookRotation(face);
-        instance.transform.localPosition += -face * 0.4f;
+        instance.transform.localPosition += -face * 0.3f;
         Wave wavescript = instance.GetComponent<Wave>();
         wavescript.playerNumber = playerNumber;
         wavescript.face = face;
@@ -168,8 +168,11 @@ class Utils
         GameObject instance2 = UnityEngine.Object.Instantiate(Resources.Load("explo", typeof(GameObject)), position, Quaternion.identity) as GameObject;
         instance2.transform.parent = arena.transform;
         instance2.transform.localRotation = Quaternion.LookRotation(face);
-        instance2.transform.localPosition += -face * 0.4f;
+        instance2.transform.localPosition += -face * 0.3f;
         GameObject.Destroy(instance2, 0.2f);
+
+        //shake
+        arena.GetComponent<Arena>().Shake(face, power);
     }
 
     public static void FlyBlocks(Vector3 position, Vector3 face, float radius)
@@ -185,6 +188,21 @@ class Utils
                 if (dist < radius)
                 {
                     blockScript.Fly();
+                }
+            }
+        }
+
+        var players = GameObject.FindGameObjectsWithTag("Player");
+
+        foreach (GameObject player in players)
+        {
+            var playerScript = player.GetComponent<Player>();
+            if (playerScript.GetCurrentFace().Equals(face) && player.transform.position != position && !playerScript.isFlying())
+            {
+                var dist = Vector3.Distance(player.transform.position, position);
+                if (dist < radius)
+                {
+                    playerScript.Kill();
                 }
             }
         }
